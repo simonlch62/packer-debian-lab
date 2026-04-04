@@ -1,0 +1,19 @@
+# Packer - cache ISO et répertoires de build
+packer_cache/
+output-*/
+crash.log
+packer.log
+
+# Fichiers VMware générés
+*.vmdk
+*.vmx
+*.vmxf
+*.vmsd
+*.nvram
+*.vmem
+*.vmsn
+*.lck/
+
+# OS
+.DS_Store
+Thumbs.db
