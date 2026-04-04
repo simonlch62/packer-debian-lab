@@ -1,41 +1,6 @@
 # Packer — Debian 13 (Trixie) pour VMware
 
-## Prérequis
-
-- [Packer](https://developer.hashicorp.com/packer/install) ≥ 1.9
-- VMware Workstation ou VMware Player installé
-- Accès Internet (téléchargement de l'ISO + paquets APT)
-
-### Installer Packer sur Debian
-
-```bash
-wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt update && sudo apt install -y packer
-```
-
----
-
-## Utilisation
-
-```bash
-# 1. Télécharger le plugin VMware
-packer init debian13.pkr.hcl
-
-# 2. Valider la configuration
-packer validate -var-file=variables.pkrvars.hcl debian13.pkr.hcl
-
-# 3. Lancer le build
-packer build -var-file=variables.pkrvars.hcl debian13.pkr.hcl
-```
-
-La VM est générée dans `output-debian13/` (fichiers `.vmx` + `.vmdk`).  
-Ouvrez le `.vmx` directement dans VMware Workstation/Player.
-
----
-
-## Ce qui est configuré automatiquement
+## Paramètrage de la VM
 
 | Élément | Valeur |
 |---|---|
@@ -53,7 +18,7 @@ Ouvrez le `.vmx` directement dans VMware Workstation/Player.
 
 ---
 
-## Ce qu'il faut éventuellement mettre à jour
+## Maintien du projet
 
 ### ISO Debian 13
 
@@ -89,7 +54,7 @@ provisioner "shell" {
 
 ### Installer Docker sur la VM
 
-Une fois connecté en root sur la VM :
+Une fois connecté en root sur la VM vous pouvez installer docker si besoin :
 
 ```bash
 bash /root/docker.sh
