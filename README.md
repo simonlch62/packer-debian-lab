@@ -18,6 +18,55 @@
 
 ---
 
+## Branches
+
+| Branche | Cible | Description |
+|---|---|---|
+| `main` | VMware Workstation / Fusion (local) | Build local, sortie dans `output-*/` |
+| `deb13_esx` | ESXi 192.168.1.202 | Déploiement direct sur hôte ESXi distant |
+
+---
+
+## Utilisation
+
+### Build local (branche `main`)
+
+```bash
+packer build -var-file=variables.pkrvars.hcl debian13.pkr.hcl
+```
+
+### Déploiement sur ESXi (branche `deb13_esx`)
+
+Créer le fichier `secrets.pkrvars.hcl` (jamais commité, voir `.gitignore`) :
+
+```hcl
+esxi_username = "root"
+esxi_password = "votre_mot_de_passe"
+```
+
+Puis lancer le build :
+
+```bash
+packer build \
+  -var-file=variables.pkrvars.hcl \
+  -var-file=secrets.pkrvars.hcl \
+  debian13.pkr.hcl
+```
+
+La VM est déployée directement sur l'ESXi et reste enregistrée dans son inventaire.
+
+---
+
+## Configuration ESXi (`variables.pkrvars.hcl`)
+
+| Variable | Valeur par défaut | Description |
+|---|---|---|
+| `esxi_host` | `192.168.1.202` | IP de l'hôte ESXi |
+| `esxi_datastore` | `DISK_0` | Datastore de destination |
+| `esxi_network` | `VM Network` | Portgroup ESXi |
+
+---
+
 ## Maintien du projet
 
 ### ISO Debian 13
@@ -65,9 +114,10 @@ bash /root/docker.sh
 ## Structure du projet
 
 ```
-packer-debian-lab/
+debian_packer/
 ├── debian13.pkr.hcl          Configuration principale Packer
-├── variables.pkrvars.hcl     Variables overridables
+├── variables.pkrvars.hcl     Variables overridables (ESXi host, datastore, réseau)
+├── secrets.pkrvars.hcl       Credentials ESXi — NON COMMITÉ (.gitignore)
 ├── .gitignore
 ├── http/
 │   └── preseed.cfg           Installation Debian automatisée (d-i)
