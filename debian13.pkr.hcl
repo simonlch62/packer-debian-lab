@@ -1,9 +1,9 @@
 packer {
   required_version = ">= 1.9.0"
   required_plugins {
-    vmware = {
-      version = ">= 1.0.7"
-      source  = "github.com/hashicorp/vmware"
+    vsphere = {
+      version = ">= 1.2.0"
+      source  = "github.com/hashicorp/vsphere"
     }
   }
 }
@@ -12,7 +12,7 @@ packer {
 
 variable "vm_name" {
   type    = string
-  default = "debian13"
+  default = "TPL_DEB_13"
 }
 
 variable "iso_url" {
@@ -46,32 +46,89 @@ variable "cpus" {
   default = 2
 }
 
-variable "headless" {
-  type        = bool
-  description = "true = pas d'interface graphique pendant l'install"
-  default     = false
+# ─── Variables ESXi ───────────────────────────────────────────────────────────
+
+variable "esxi_host" {
+  type        = string
+  description = "Adresse IP ou FQDN de l'hôte ESXi"
+  default     = "192.168.1.202"
 }
 
-# ─── Source VMware ISO ────────────────────────────────────────────────────────
+variable "esxi_username" {
+  type        = string
+  description = "Utilisateur de l'ESXi (ex : root)"
+  sensitive   = true
+}
 
-source "vmware-iso" "debian13" {
+variable "esxi_password" {
+  type        = string
+  description = "Mot de passe de l'ESXi"
+  sensitive   = true
+}
+
+variable "esxi_datastore" {
+  type        = string
+  description = "Nom du datastore ESXi où déployer la VM"
+  default     = "DISK_0"
+}
+
+variable "esxi_network" {
+  type        = string
+  description = "Nom du portgroup ESXi"
+  default     = "VM Network"
+}
+
+# ─── Source vSphere ISO ───────────────────────────────────────────────────────
+# Le builder vsphere-iso se connecte directement à l'API ESXi (sans vCenter).
+
+source "vsphere-iso" "debian13" {
+
+  # --- Connexion ESXi
+  vcenter_server      = var.esxi_host
+  host                = var.esxi_host  # Hôte ESXi cible (requis même sans vCenter)
+  username            = var.esxi_username
+  password            = var.esxi_password
+  insecure_connection = true # Certificat auto-signé ESXi
 
   # --- Identification VM
   vm_name       = var.vm_name
-  guest_os_type = "debian12-64" # Plus proche disponible dans VMware pour Debian 13
-
-  # --- ISO
-  iso_url      = var.iso_url
-  iso_checksum = var.iso_checksum
+  guest_os_type = "debian13_64Guest"
 
   # --- Ressources
-  disk_size = var.disk_size
-  memory    = var.memory
-  cpus      = var.cpus
+  CPUs = var.cpus
+  RAM  = var.memory
+
+  # --- Disque
+  storage {
+    disk_size             = var.disk_size
+    disk_thin_provisioned = true
+  }
+  disk_controller_type = ["pvscsi"]
 
   # --- Réseau
-  network              = "nat"
-  network_adapter_type = "vmxnet3"
+  network_adapters {
+    network      = var.esxi_network
+    network_card = "vmxnet3"
+  }
+
+  # --- Datastore de destination
+  datastore = var.esxi_datastore
+
+  # convert_to_template non supporté sur ESXi standalone (nécessite vCenter)
+  # → Conversion manuelle via l'UI ESXi après le build (clic droit > Convert to template)
+
+  # --- open-vm-tools géré par apt, pas par vSphere
+  tools_upgrade_policy = false
+
+  # --- Retirer le lecteur CD après le build (template propre)
+  remove_cdrom = true
+
+  # --- Description visible dans l'UI ESXi
+  notes = "Debian 13 (Trixie) — Template générée par Packer\nUtilisateur : root/root — student/root\nPaquets : openssh-server, sudo, open-vm-tools, docker.sh"
+
+  # --- ISO (Packer télécharge et uploade sur le datastore automatiquement)
+  iso_url      = var.iso_url
+  iso_checksum = var.iso_checksum
 
   # --- Serveur HTTP local pour le preseed (Packer l'expose automatiquement)
   http_directory = "http"
@@ -83,29 +140,36 @@ source "vmware-iso" "debian13" {
   ssh_password = "root"
   ssh_timeout  = "60m"
 
-  # --- Affichage
-  headless = var.headless
+  # --- Firmware EFI
+  firmware = "efi"
 
-  # --- Commande de démarrage
-  # Entre dans la ligne de commande GRUB (touche 'c') puis boot avec le preseed
-  boot_wait = "12s"
+  # --- Commande de démarrage (GRUB EFI — touche 'e' pour éditer l'entrée Install)
+  boot_wait = "15s"
   boot_command = [
-    "<esc><wait3>",
-    "auto priority=critical url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg<enter>"
+    "e<wait2>",
+    "<down><down><down><end>",
+    " auto=true priority=critical url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg<wait>",
+    "<leftCtrlOn>x<leftCtrlOff>"
   ]
-
-  # --- Répertoire de sortie (fichiers .vmx + .vmdk)
-  output_directory = "output-${var.vm_name}"
-
-  # --- Arrêt propre
-  shutdown_command = "shutdown -h now"
 }
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 
 build {
   name    = "debian13"
-  sources = ["source.vmware-iso.debian13"]
+  sources = ["source.vsphere-iso.debian13"]
+
+  # ── Clavier AZERTY (TTY / VMRC) ──────────────────────────────────────────────
+  provisioner "shell" {
+    inline = [
+      "echo 'XKBMODEL=\"pc105\"'    >  /etc/default/keyboard",
+      "echo 'XKBLAYOUT=\"fr\"'      >> /etc/default/keyboard",
+      "echo 'XKBVARIANT=\"\"'       >> /etc/default/keyboard",
+      "echo 'XKBOPTIONS=\"\"'       >> /etc/default/keyboard",
+      "echo 'BACKSPACE=\"guess\"'   >> /etc/default/keyboard",
+      "setupcon --force",
+    ]
+  }
 
   # ── Welcome screen ──────────────────────────────────────────────────────────
   # Dépose le script dans /etc/profile.d/ → exécuté à chaque connexion shell
