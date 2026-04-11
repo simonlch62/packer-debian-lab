@@ -14,6 +14,10 @@ packer.log
 *.vmsn
 *.lck/
 
+# Credentials — ne jamais committer
+secrets.pkrvars.hcl
+*.secrets.hcl
+
 # OS
 .DS_Store
 Thumbs.db
